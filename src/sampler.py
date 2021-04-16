@@ -46,14 +46,25 @@ class Sampler:
             # take feature matrix of positives w.r.t closest distance
             is_valid = (pw_dist <= self.pos_dist).sum(axis=1) > 0
             self.pos_candidates = np.where(is_valid)[0]
+            self.pos = pw_dist.argmin(axis=0)
             self.xy_pos = self.xy[self.pos_candidates, :]
         else:
             # all are valid negative candidates
             self.neg_candidates = np.arange(self.xy.shape[0])
             self.pos_candidates = np.array([])
+            self.pos = np.array([])
 
     def get_image(self):
         return io.imread(self.im_path)
+
+    def get_no_aug_pos(self):
+        """
+        Return a {0;1} vector of annotated positives (without augmented)
+        """
+        y = np.zeros(self.descs.shape[0]).astype(int)
+        if self.pos.size > 0:
+            y[self.pos] = 1
+        return y
 
     def _has_pos(self):
         return self.xy_pos.size > 0
@@ -101,7 +112,10 @@ class Sampler:
         """
         N_neg = self.get_n_negs(N_neg)
 
-        idx_negs = np.random.choice(self.neg_candidates, size=N_neg, p=p)
+        if p is not None:
+            idx_negs = np.argsort(p)[-N_neg:]
+        else:
+            idx_negs = np.random.choice(self.neg_candidates, size=N_neg)
 
         return self._build_output_from_negs(idx_negs)
 

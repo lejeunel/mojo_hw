@@ -1,0 +1,28 @@
+#+TITLE: Mojo Fertility Assignment
+
+* Requirements
+
+- numpy
+- scikit-learn
+- scikit-image
+- tqdm
+- matplotlib
+- configargparse
+
+* Usage
+
+Run all these from the ~src~ directory:
+
+1. Extract features:
+
+    #+BEGIN_SRC sh
+    python feat_extractor.py --im-path <path/to/images> --out-path <path/to/features>
+    #+END_SRC
+
+2. Train:
+
+    #+BEGIN_SRC sh
+    python train.py --do-hard-mining --im-path <path/to/images> --label-path <path/to/labels> --results-path <path/to/results> --feat-path <path/to/features>
+    #+END_SRC
+
+3. Run k-fold cross-validation:

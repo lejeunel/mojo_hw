@@ -1,4 +1,4 @@
-% Created 2021-04-16 Fri 07:57
+% Created 2021-04-16 Fri 18:59
 % Intended LaTeX compiler: pdflatex
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
@@ -29,21 +29,21 @@
 \maketitle
 
 \section{Context and Goal}
-\label{sec:org81fc0ee}
+\label{sec:orgdbc1f25}
 
 In the context of sperm quality assessment, we devise an algorithm that counts the number of spermatozoa
 on image-slices obtained through a camera.
 
 
 \section{Method}
-\label{sec:org471f105}
+\label{sec:orgc7e85bd}
 
 Our solution relies on a Random Forest classifier trained on patches.
 In a nutshell, we first leverage the \href{https://www.epfl.ch/labs/cvlab/software/descriptors-and-keypoints/daisy/}{DAISY} descriptors to characterize local regions.
 We then devise a sampling strategy to augment the scarce positive set, while a hard negative mining strategy allows to select relevant samples from the redundant and ambiguous
 negative set.
 
-The main challenges of this problem lies in (1) the strong imbalance of the provided annotated dataset, where the maximum number of positive samples per image is around \(15\), and (2) the fact that many spermatozoa that are not
+The main challenges of this problem lies in (1) the strong imbalance of the provided annotated dataset, where the mean number of positive samples per image is around \(10\), and (2) the fact that many spermatozoa that are not
 in focus must be classified as negative.
 
 It is therefore clear that training an efficient classifier in this context requires an appropriate
@@ -56,7 +56,7 @@ our negative mining strategy, and finish by giving details on the setting of hyp
 
 
 \subsection{Notations}
-\label{sec:org8d247f5}
+\label{sec:org8750891}
 
 \begin{itemize}
 \item \(\bm{X} \in \mathbb{R}^{N \times D}\) a feature matrix where rows are samples and columns
@@ -66,7 +66,7 @@ are the components of the feature vector.
 \end{itemize}
 
 \subsection{Feature extraction}
-\label{sec:org42f8f98}
+\label{sec:org4a6c296}
 
 DAISY descriptors have been proposed as an improvement over the popular \href{https://en.wikipedia.org/wiki/Scale-invariant\_feature\_transform}{Scale Invariant Feature Transform (SIFT)}.
 In particular, it is devised to compute dense descriptors (one per pixel) using a fast algorithm.
@@ -78,7 +78,7 @@ For an image of size \(1920 \times 1200\), we obtain a total of \(9000\) descrip
 The \href{https://github.com/scikit-image/scikit-image/blob/main/skimage/feature/\_daisy.py\#L9-L222}{algorithm} computes dense descriptors in \(\sim 5\) seconds per image, making \(\sim 50\) minutes for the full dataset (500 images).
 
 \subsection{Classifier}
-\label{sec:orgfbee2b2}
+\label{sec:orga9d1854}
 
 To classify patches, we use a \href{https://en.wikipedia.org/wiki/Random\_forest}{Random Forest} classifier.
 We set \(T=100\) trees, \(D'=\sqrt{D}\) randomly picked feature component per split, and stop growing a tree
@@ -86,7 +86,7 @@ when all leaves contain less than \(N'=0.05 \cdot (2 \cdot N_p)\) samples.
 As purity criterion, we select the \href{https://en.wikipedia.org/wiki/Gini\_coefficient}{Gini} index.
 
 \subsection{Augmentation of positives}
-\label{sec:org9c38fec}
+\label{sec:org767b1ac}
 
 To alleviate the lack of positives, we define a circular region centered on a \((x,y)\) location
 annotated as positive, and
@@ -96,38 +96,44 @@ threshold the values of this matrix by a pre-defined constant \(L_2\) -norm,
 and augment our positive set with the corresponding samples.
 
 \subsection{Hard negative mining}
-\label{sec:orgf138a43}
+\label{sec:org1dc96ba}
 
 We follow a simple iterative strategy to identify ``hard'' negatives.
 Our idea is to pick relevant negative samples by using the predicted probability of the model itself.
+
+Let \(\mathcal{S}_p\) the set of positive samples, obtained as in Sec. \ref{sec:org767b1ac}, such that \(|\mathcal{S}_p|=N_p\).
+Also, let \(\mathcal{S}_n\) the set of negative samples, such that \(|\mathcal{S}_n|=N_n \gg N_p\).
+
 Our algorithm runs as follows:
 
 \begin{enumerate}
-\item Train \(f_\theta\) using \(N_p\) positive samples chosen as in Sec. \ref{sec:org9c38fec}, and an equal amount of negative samples
-chosen by uniform random sampling.
-\item Predict all negative samples to get \(\hat{y}^-\)
-\item Sort negative samples according to \(\hat{y}^-\) in descending order, and pick the first elements to get \(N_p\) negative samples.
-\item Re-train \(f_\theta\) using \(N_p\) positives (as in step 1.) and \(N_p\) negatives.
+\item Train \(f_\theta\) by fitting \(T\) trees using positive set \(\mathcal{S}_p\), and negative set \(\mathcal{S}'_n\) with \(N_p\)
+samples chosen by uniform random sampling from \(\mathcal{S}_n\).
+\item Predict probability of samples from \(\mathcal{S}_n\) using \(f_\theta\) to get \(\hat{y}^-\)
+\item Sort \(\mathcal{S}_n\) according to \(\hat{y}^-\) in descending order, and set
+\(\mathcal{S}'_n\) with the first \(N_p\) elements of \(\mathcal{S}_n\).
+\item Train \(f_\theta\) by fitting \(T\) \textbf{additional trees} using \(\mathcal{S}_p\) and \(\mathcal{S}'_n\).
 \item Repeat steps 2-4 \(M\) times.
 
-Fig. \ref{fig:orgdddc4a4} illustrates our sampling strategy on an example image.
+Fig. \ref{fig:orgcbb9719} illustrates our sampling strategy on an example image.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=.9\linewidth]{../results/mining_prev.png}
-\caption{\label{fig:orgdddc4a4}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after \(M=4\) iterations.}
+\caption{\label{fig:orgcbb9719}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after \(M=4\) iterations.}
 \end{figure}
 \end{enumerate}
 
 \subsection{Tuning of hyper-parameters}
-\label{sec:org6d73f83}
+\label{sec:org84adf9d}
 
 Recall that our task is to \textbf{count} the number of spermatozoa.
 Since our pipeline extracts \(\sim 9000\) samples per image, we need a criteria to select among these the
 candidates that are more likely to be positives.
 
 In particular, we look for a threshold \(\tau\) on the output probabilities \(\hat{y}\)
-to select positives using 4-fold cross-validation.
-Our dataset is thus divided in 4 distinct validation subsets of equal size (\(125\) images), while
-all others are used for training.
+using a 4-fold cross-validation strategy.
+We let aside a subset of \(50\) images for the testing phase, and divide the remaining \(450\)
+images in 4 non-overlapping validation subsets of equal size (\(125\) images), while
+the training set of a fold contains all other samples.
 \end{document}

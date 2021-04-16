@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     p = configargparse.ArgParser()
 
-    p.add('--in-path', default='../dataset/images')
+    p.add('--im-path', default='../dataset/images')
     p.add('--im-ext', default='png')
     p.add('--out-path', default='../feats')
     p.add('--step', default=16)
@@ -69,7 +69,7 @@ if __name__ == "__main__":
                            histograms=cfg.histograms,
                            rings=cfg.rings)
 
-    ims_fname = sorted(glob.glob(os.path.join(cfg.in_path, '*.' + cfg.im_ext)))
+    ims_fname = sorted(glob.glob(os.path.join(cfg.im_path, '*.' + cfg.im_ext)))
     print('found ', len(ims_fname), ' images')
 
     for im_fname in tqdm(ims_fname):

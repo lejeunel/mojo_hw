@@ -6,7 +6,43 @@ from sampler import Sampler
 import glob
 from skimage import io
 import os
+import re
 from tqdm import tqdm
+import pickle
+
+
+def make_train_val_test(samplers, test_ratio, n_folds=4):
+    test_trainval_samplers = np.array_split(samplers,
+                                            [int(len(samplers) * test_ratio)])
+    train_val_samplers = test_trainval_samplers[1]
+    test_samplers = test_trainval_samplers[0]
+
+    chunks = np.array_split(train_val_samplers, n_folds)
+
+    folds = []
+    for n in range(n_folds):
+        train_fold = [c for k, c in enumerate(chunks) if k != n]
+        train_fold = [item for sublist in train_fold for item in sublist]
+        dict_ = {'train': train_fold, 'val': chunks[n]}
+        folds.append(dict_)
+
+    return folds, test_samplers
+
+
+def load_clfs(path):
+
+    clfs = []
+    print('loading classifiers...')
+    for p in sorted(glob.glob(os.path.join(path, 'clf_*.p'))):
+        z = re.match("clf_fold_(\d)_iter_(\d)", os.path.split(p)[-1])
+        with open(p, 'rb') as f:
+            clfs.append({
+                'fold': int(z.group(1)),
+                'iter': int(z.group(2)),
+                'clf': pickle.load(f)
+            })
+
+    return clfs
 
 
 def build_samplers(im_path, feat_path, label_path):

@@ -27,19 +27,16 @@ def predict_negs(clf, samplers):
 
     preds = np.split(preds, np.cumsum(n_samples))[:-1]
 
-    # normalize to 1-sum
-    preds = [p / p.sum() for p in preds]
-
     return preds
 
 
-def train_rf(clf, samplers, sample_mode='random'):
+def train_rf(clf, samplers, do_hard_mining=False):
 
     Y = []
     f = []
 
     sampling_probas = [None] * len(samplers)
-    if sample_mode != 'random':
+    if do_hard_mining:
         sampling_probas = predict_negs(clf, samplers)
 
     for p, s in zip(sampling_probas, samplers):
@@ -61,50 +58,38 @@ if __name__ == "__main__":
     p.add('--results-path', default='../results')
     p.add('--feat-path', default='../feats')
     p.add('--folds', default=4)
+    p.add('--test-ratio', default=0.1)
     p.add('--n-jobs', default=4)
     p.add('--n-trees', default=100)
     p.add('--min-samp-split', default=0.05)
     p.add('--mining-iters', default=4)
+    p.add('--do-hard-mining', default=False, action='store_true')
     cfg = p.parse_args()
 
     if not os.path.exists(cfg.results_path):
-        ok.makedirs(cfg.results_path)
+        os.makedirs(cfg.results_path)
 
     samplers = utls.build_samplers(cfg.im_path, cfg.feat_path, cfg.label_path)
+    folds, _ = utls.make_train_val_test(samplers,
+                                        cfg.test_ratio,
+                                        n_folds=cfg.folds)
 
-    chunks = np.array_split(samplers, cfg.folds)
-
-    for i in range(cfg.folds):
-        # get samplers for train and validation
-        train_samplers = [c for k, c in enumerate(chunks) if k != i]
-        train_samplers = [
-            item for sublist in train_samplers for item in sublist
-        ]
-        val_samplers = chunks[i]
+    for i, fold in enumerate(folds):
+        train_samplers = fold['train']
+        clf = RandomForestClassifier(warm_start=True,
+                                     n_jobs=cfg.n_jobs,
+                                     min_samples_split=cfg.min_samp_split,
+                                     n_estimators=cfg.n_trees)
         for j in range(cfg.mining_iters):
             print('fold {}/{}, iter. {}/{}'.format(i + 1, cfg.folds, j + 1,
                                                    cfg.mining_iters))
-            if j == 0:
-                # first iteration: build classifier
-                clf = RandomForestClassifier(
-                    verbose=False,
-                    n_jobs=cfg.n_jobs,
-                    min_samples_split=cfg.min_samp_split,
-                    n_estimators=cfg.n_trees)
-                clf = train_rf(clf, train_samplers)
-            else:
-                clf = train_rf(clf, train_samplers, sample_mode='weighted')
+            if j > 0:
+                clf.n_estimators += cfg.n_trees
+            clf = train_rf(clf, train_samplers,
+                           False if j == 0 else cfg.do_hard_mining)
 
             out_path = os.path.join(cfg.results_path,
                                     'clf_fold_{}_iter_{}.p'.format(i, j))
             print('saving classifier to ', out_path)
             with open(out_path, 'wb') as f:
                 pickle.dump(clf, f)
-
-    # import matplotlib.pyplot as plt
-    # _, ax = plt.subplots()
-    # ax.imshow(im, cmap='gray')
-    # utls.plot_bboxes(xy[Y == 1, :], im.shape, ax, color='g')
-    # utls.plot_bboxes(xy[Y == 0, :], im.shape, ax, color='r')
-
-    # plt.show()

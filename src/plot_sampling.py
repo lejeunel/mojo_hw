@@ -21,15 +21,17 @@ if __name__ == "__main__":
 
     samplers = utls.build_samplers(cfg.im_path, cfg.feat_path, cfg.label_path)
 
-    clfs = []
-    print('loading classifiers...')
-    for p in sorted(glob.glob(os.path.join(cfg.results_path, '*.p'))):
-        with open(p, 'rb') as f:
-            clfs.append(pickle.load(f))
+    clfs = utls.load_clfs(cfg.results_path)
 
     chunks = np.array_split(samplers, len(clfs))
 
     test_fold = 0
+    iter_ = 3
+
+    clf = [
+        c for c in clfs if ((c['fold'] == test_fold) and (c['iter'] == iter_))
+    ][0]['clf']
+
     test_im = 0
     n_candidates = 20
     sampler = chunks[test_fold][test_im]
@@ -52,12 +54,7 @@ if __name__ == "__main__":
                      ax[1],
                      color='g')
 
-    preds = clfs[test_fold].predict_proba(
-        sampler.descs[sampler.neg_candidates])[:, 1]
-    idxs = np.argsort(preds)[-n_candidates:]
-
-    preds = clfs[test_fold].predict_proba(
-        sampler.descs[sampler.neg_candidates])[:, 1]
+    preds = clf.predict_proba(sampler.descs[sampler.neg_candidates])[:, 1]
     idxs = np.argsort(preds)[-n_candidates:]
 
     utls.plot_bboxes(sampler.xy[sampler.neg_candidates[idxs]],

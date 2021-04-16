@@ -1,0 +1,98 @@
+#+TITLE:  Mojo Fertility Assignment
+#+Author: Laurent Lejeune
+#+OPTIONS: toc:nil
+
+* Context and Goal
+
+In the context of sperm quality assessment, we devise an algorithm that counts the number of spermatozoa
+on image-slices obtained through a camera.
+
+
+* Method
+
+Our solution relies on a Random Forest classifier trained on patches.
+In a nutshell, we first leverage the [[https://www.epfl.ch/labs/cvlab/software/descriptors-and-keypoints/daisy/][DAISY]] descriptors to characterize local regions.
+We then devise a sampling strategy to augment the scarce positive set, while a hard negative mining strategy allows to select relevant samples from the redundant and ambiguous
+negative set.
+
+The main challenges of this problem lies in (1) the strong imbalance of the provided annotated dataset, where the mean number of positive samples per image is around $10$, and (2) the fact that many spermatozoa that are not
+in focus must be classified as negative.
+
+It is therefore clear that training an efficient classifier in this context requires an appropriate
+negative mining strategy, since a vast amount of potential negative patches carry no relevant information, e.g.
+homogeneous taint, or obvious artifacts (debris).
+
+We now describe in more details our pipeline.
+After introducing some notations, we describe our feature extraction instance, follow with
+our negative mining strategy, and finish by giving details on the setting of hyper-parameters using K-fold cross-validation.
+
+
+** Notations
+
+- $\bm{X} \in \mathbb{R}^{N \times D}$ a feature matrix where rows are samples and columns
+    are the components of the feature vector.
+- $\bm{Y} \in \{0;1\}^N$ the ground-truth label vector of the corresponding samples
+- $\hat{y}= f_{\theta}(x): \mathbb{R}^{D} \rightarrow [0;1]$ is a classifier that outputs the probability of an input vector to be an object of interest.
+
+** Feature extraction
+
+DAISY descriptors have been proposed as an improvement over the popular [[https://en.wikipedia.org/wiki/Scale-invariant_feature_transform][Scale Invariant Feature Transform (SIFT)]].
+In particular, it is devised to compute dense descriptors (one per pixel) using a fast algorithm.
+
+In our scenario, we do not need to localize samples precisely.
+We therefore prefer to extract descriptors with a decimation step of $8$, so as to save memory.
+For an image of size $1920 \times 1200$, we obtain a total of $9000$ descriptors encoded in [[https://en.wikipedia.org/wiki/Half-precision_floating-point_format][Half-precision floating-point format]].
+
+The [[https://github.com/scikit-image/scikit-image/blob/main/skimage/feature/_daisy.py#L9-L222][algorithm]] computes dense descriptors in $\sim 5$ seconds per image, making $\sim 50$ minutes for the full dataset (500 images).
+
+** Classifier
+
+To classify patches, we use a [[https://en.wikipedia.org/wiki/Random_forest][Random Forest]] classifier.
+We set $T=100$ trees, $D'=\sqrt{D}$ randomly picked feature component per split, and stop growing a tree
+when all leaves contain less than $N'=0.05 \cdot (2 \cdot N_p)$ samples.
+As purity criterion, we select the [[https://en.wikipedia.org/wiki/Gini_coefficient][Gini]] index.
+
+** Augmentation of positives
+
+To alleviate the lack of positives, we define a circular region centered on a $(x,y)$ location
+annotated as positive, and
+take as positive patches all patches whose center is in a close vicinity.
+In particular, we compute a pairwise distance matrix between all positives and all other samples,
+threshold the values of this matrix by a pre-defined constant $L_2$ -norm,
+and augment our positive set with the corresponding samples.
+
+** Hard negative mining
+
+We follow a simple iterative strategy to identify "hard" negatives.
+Our idea is to pick relevant negative samples by using the predicted probability of the model itself.
+
+Let $\mathcal{S}_p$ the set of positive samples, obtained as in Sec. [[Augmentation of positives]], such that $|\mathcal{S}_p|=N_p$.
+Also, let $\mathcal{S}_n$ the set of negative samples, such that $|\mathcal{S}_n|=N_n \gg N_p$.
+
+Our algorithm runs as follows:
+
+1. Train $f_\theta$ by fitting $T$ trees using positive set $\mathcal{S}_p$, and negative set $\mathcal{S}'_n$ with $N_p$
+   samples chosen by uniform random sampling from $\mathcal{S}_n$.
+2. Predict probability of samples from $\mathcal{S}_n$ using $f_\theta$ to get $\hat{y}^-$
+3. Sort $\mathcal{S}_n$ according to $\hat{y}^-$ in descending order, and set
+   $\mathcal{S}'_n$ with the first $N_p$ elements of $\mathcal{S}_n$.
+4. Train $f_\theta$ by fitting $T$ *additional trees* using $\mathcal{S}_p$ and $\mathcal{S}'_n$.
+5. Repeat steps 2-4 $M$ times.
+
+   Fig. [[fig:mining_prev]] illustrates our sampling strategy on an example image.
+
+   #+NAME: fig:mining_prev
+   #+CAPTION: Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after $M=4$ iterations.
+   [[../results/mining_prev.png]]
+
+** Tuning of hyper-parameters
+
+Recall that our task is to *count* the number of spermatozoa.
+Since our pipeline extracts $\sim 9000$ samples per image, we need a criteria to select among these the
+candidates that are more likely to be positives.
+
+In particular, we look for a threshold $\tau$ on the output probabilities $\hat{y}$
+using a 4-fold cross-validation strategy.
+We let aside a subset of $50$ images for the testing phase, and divide the remaining $450$
+images in 4 non-overlapping validation subsets of equal size ($125$ images), while
+the training set of a fold contains all other samples.
