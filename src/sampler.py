@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-from sklearn.metrics import pairwise_distances
-from skimage import io
-import utils as utls
 import numpy as np
+from skimage import io
+from sklearn.metrics import pairwise_distances
+
+import utils as utls
 
 
 class Sampler:

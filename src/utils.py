@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
+import glob
+import os
+import pickle
+import re
+
 import matplotlib.patches as patches
 import numpy as np
-import matplotlib.pyplot as plt
-from sampler import Sampler
-import glob
-from skimage import io
-from skimage import feature
-import os
-import re
+from skimage import feature, io
 from tqdm import tqdm
-import pickle
+
+from sampler import Sampler
 
 
 def predict(clf,
@@ -25,13 +25,14 @@ def predict(clf,
         xy = s.xy
         yhat = clf.predict_proba(s.descs)[:, 1]
         shape = io.imread(s.im_path).shape
-        peaks_ = get_peaks(xy,
-                           yhat,
-                           step,
-                           max_num_peaks,
-                           shape,
-                           thr_rel=thr_rel,
-                           thr_abs=thr_abs)
+        peaks_ = get_peaks(
+            xy,
+            yhat,
+            step,
+            max_num_peaks,
+            shape,
+            thr_rel=thr_rel,
+            thr_abs=np.mean(yhat) if thr_abs == 'mean' else thr_abs)
         peaks.append(peaks_)
 
     return peaks
@@ -84,7 +85,7 @@ def load_clfs(path):
 
     clfs = []
     print('loading classifiers...')
-    for p in sorted(glob.glob(os.path.join(path, 'clf_*.p'))):
+    for p in sorted(glob.glob(os.path.join(path, 'clf*.p'))):
         z = re.match("clf_fold_(\d)_iter_(\d)", os.path.split(p)[-1])
         with open(p, 'rb') as f:
             clfs.append({

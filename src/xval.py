@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-import configargparse
 import os
-from skimage import io
-import utils as utls
-import numpy as np
-from tqdm import tqdm
 import pickle
-import matplotlib.pyplot as plt
-from train import train
+
+import configargparse
+import numpy as np
+from skimage import io
 from sklearn.model_selection import ParameterGrid
+from tqdm import tqdm
+
+import utils as utls
+from train import train
 """
-Perform cross-validation on tree complexity parameters of Random Forest
+Perform cross-validation on "tree complexity" parameters of Random Forest
 """
 
 if __name__ == "__main__":
@@ -33,16 +34,16 @@ if __name__ == "__main__":
 
     # cross-val params
     p.add('--max-feats-start', default=0.1, type=float)
-    p.add('--max-feats-end', default=0.5, type=float)
+    p.add('--max-feats-end', default=0.3, type=float)
     p.add('--max-feats-step', default=0.1, type=float)
 
-    p.add('--min-samp-split-start', default=0.1, type=float)
-    p.add('--min-samp-split-end', default=0.4, type=float)
-    p.add('--min-samp-split-step', default=0.15, type=float)
+    p.add('--min-samp-split-start', default=0.01, type=float)
+    p.add('--min-samp-split-end', default=0.05, type=float)
+    p.add('--min-samp-split-step', default=0.01, type=float)
 
-    p.add('--min-samp-leaf-start', default=0.1, type=float)
-    p.add('--min-samp-leaf-end', default=0.4, type=float)
-    p.add('--min-samp-leaf-step', default=0.15, type=float)
+    p.add('--min-samp-leaf-start', default=0.01, type=float)
+    p.add('--min-samp-leaf-end', default=0.02, type=float)
+    p.add('--min-samp-leaf-step', default=1., type=float)
 
     cfg = p.parse_args()
 

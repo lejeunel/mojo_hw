@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-import configargparse
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
-import utils as utls
-from sampler import Sampler
-import glob
 import os
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.utils.class_weight import compute_class_weight
 import pickle
+
+import configargparse
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+
+import utils as utls
 
 
 def train_rf(clf, samplers, Y, add_negatives=0, do_hard_mining=False):
@@ -78,15 +75,17 @@ if __name__ == "__main__":
 
     p = configargparse.ArgParser()
 
-    p.add('--save-path', required=True)
+    p.add('--results-path', required=True)
     p.add('--label-path', default='../dataset/labels')
     p.add('--im-path', default='../dataset/images')
     p.add('--feat-path', default='../feats')
-    p.add('--test-ratio', default=0.2)
+    p.add('--test-ratio', default=0.2, type=float)
     p.add('--n-jobs', default=4)
-    p.add('--n-trees', default=50)
-    p.add('--min-samp-split', default=0.1)
-    p.add('--min-samp-leaf', default=0.1)
+    p.add('--n-iters', default=4)
+    p.add('--n-trees', default=10)
+    p.add('--min-samp-split', default=0.1, type=float)
+    p.add('--min-samp-leaf', default=0.1, type=float)
+    p.add('--max-feats', default=0.1, type=float)
     p.add('--mining-iters', default=4)
     p.add('--do-hard-mining', default=False, action='store_true')
     cfg = p.parse_args()
@@ -95,17 +94,15 @@ if __name__ == "__main__":
         os.makedirs(cfg.results_path)
 
     samplers = utls.build_samplers(cfg.im_path, cfg.feat_path, cfg.label_path)
-    folds, _ = utls.make_train_val_test(samplers,
-                                        cfg.test_ratio,
-                                        n_folds=cfg.folds)
+    samplers, _ = utls.make_train_val_test(samplers, cfg.test_ratio, n_folds=1)
 
-    for i, fold in enumerate(folds):
-        train_samplers = fold['train']
+    train_samplers = samplers[0]['train']
 
-        clf = train(train_samplers, cfg.n_trees, cfg.min_samp_split,
-                    cfg.min_samp_leaf, cfg.n_iters, cfg.n_jobs,
-                    cfg.do_hard_mining)
+    clf = train(train_samplers, cfg.n_trees, cfg.min_samp_split,
+                cfg.min_samp_leaf, cfg.max_feats, cfg.n_iters, cfg.n_jobs,
+                cfg.do_hard_mining)
 
-        print('saving classifier to ', cfg.save_path)
-        with open(cfg.save_path, 'wb') as f:
-            pickle.dump(clf, f)
+    out_path = os.path.join(cfg.results_path, 'clf.p')
+    print('saving classifier to ', out_path)
+    with open(out_path, 'wb') as f:
+        pickle.dump(clf, f)
