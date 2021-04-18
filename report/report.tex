@@ -1,4 +1,4 @@
-% Created 2021-04-16 Fri 18:59
+% Created 2021-04-17 Sat 11:25
 % Intended LaTeX compiler: pdflatex
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
@@ -29,14 +29,14 @@
 \maketitle
 
 \section{Context and Goal}
-\label{sec:orgdbc1f25}
+\label{sec:org466e312}
 
 In the context of sperm quality assessment, we devise an algorithm that counts the number of spermatozoa
 on image-slices obtained through a camera.
 
 
 \section{Method}
-\label{sec:orgc7e85bd}
+\label{sec:orgdd813ff}
 
 Our solution relies on a Random Forest classifier trained on patches.
 In a nutshell, we first leverage the \href{https://www.epfl.ch/labs/cvlab/software/descriptors-and-keypoints/daisy/}{DAISY} descriptors to characterize local regions.
@@ -48,7 +48,8 @@ in focus must be classified as negative.
 
 It is therefore clear that training an efficient classifier in this context requires an appropriate
 negative mining strategy, since a vast amount of potential negative patches carry no relevant information, e.g.
-homogeneous taint, or obvious artifacts (debris).
+homogeneous taint, or obvious artifacts (debris), while many negative samples (out of focus) are visually similar to
+positives.
 
 We now describe in more details our pipeline.
 After introducing some notations, we describe our feature extraction instance, follow with
@@ -56,7 +57,7 @@ our negative mining strategy, and finish by giving details on the setting of hyp
 
 
 \subsection{Notations}
-\label{sec:org8750891}
+\label{sec:orgc77ef82}
 
 \begin{itemize}
 \item \(\bm{X} \in \mathbb{R}^{N \times D}\) a feature matrix where rows are samples and columns
@@ -66,7 +67,7 @@ are the components of the feature vector.
 \end{itemize}
 
 \subsection{Feature extraction}
-\label{sec:org4a6c296}
+\label{sec:org934fb94}
 
 DAISY descriptors have been proposed as an improvement over the popular \href{https://en.wikipedia.org/wiki/Scale-invariant\_feature\_transform}{Scale Invariant Feature Transform (SIFT)}.
 In particular, it is devised to compute dense descriptors (one per pixel) using a fast algorithm.
@@ -78,7 +79,7 @@ For an image of size \(1920 \times 1200\), we obtain a total of \(9000\) descrip
 The \href{https://github.com/scikit-image/scikit-image/blob/main/skimage/feature/\_daisy.py\#L9-L222}{algorithm} computes dense descriptors in \(\sim 5\) seconds per image, making \(\sim 50\) minutes for the full dataset (500 images).
 
 \subsection{Classifier}
-\label{sec:orga9d1854}
+\label{sec:org0f61b03}
 
 To classify patches, we use a \href{https://en.wikipedia.org/wiki/Random\_forest}{Random Forest} classifier.
 We set \(T=100\) trees, \(D'=\sqrt{D}\) randomly picked feature component per split, and stop growing a tree
@@ -86,7 +87,7 @@ when all leaves contain less than \(N'=0.05 \cdot (2 \cdot N_p)\) samples.
 As purity criterion, we select the \href{https://en.wikipedia.org/wiki/Gini\_coefficient}{Gini} index.
 
 \subsection{Augmentation of positives}
-\label{sec:org767b1ac}
+\label{sec:orgf6647b5}
 
 To alleviate the lack of positives, we define a circular region centered on a \((x,y)\) location
 annotated as positive, and
@@ -96,12 +97,12 @@ threshold the values of this matrix by a pre-defined constant \(L_2\) -norm,
 and augment our positive set with the corresponding samples.
 
 \subsection{Hard negative mining}
-\label{sec:org1dc96ba}
+\label{sec:org6b3f574}
 
 We follow a simple iterative strategy to identify ``hard'' negatives.
 Our idea is to pick relevant negative samples by using the predicted probability of the model itself.
 
-Let \(\mathcal{S}_p\) the set of positive samples, obtained as in Sec. \ref{sec:org767b1ac}, such that \(|\mathcal{S}_p|=N_p\).
+Let \(\mathcal{S}_p\) the set of positive samples, obtained as in Sec. \ref{sec:orgf6647b5}, such that \(|\mathcal{S}_p|=N_p\).
 Also, let \(\mathcal{S}_n\) the set of negative samples, such that \(|\mathcal{S}_n|=N_n \gg N_p\).
 
 Our algorithm runs as follows:
@@ -115,17 +116,17 @@ samples chosen by uniform random sampling from \(\mathcal{S}_n\).
 \item Train \(f_\theta\) by fitting \(T\) \textbf{additional trees} using \(\mathcal{S}_p\) and \(\mathcal{S}'_n\).
 \item Repeat steps 2-4 \(M\) times.
 
-Fig. \ref{fig:orgcbb9719} illustrates our sampling strategy on an example image.
+Fig. \ref{fig:org08d1214} illustrates our sampling strategy on an example image.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=.9\linewidth]{../results/mining_prev.png}
-\caption{\label{fig:orgcbb9719}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after \(M=4\) iterations.}
+\includegraphics[width=.9\linewidth]{../results/hard_mining/mining_prev.png}
+\caption{\label{fig:org08d1214}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after \(4\) iterations.}
 \end{figure}
 \end{enumerate}
 
 \subsection{Tuning of hyper-parameters}
-\label{sec:org84adf9d}
+\label{sec:org8d9bd5e}
 
 Recall that our task is to \textbf{count} the number of spermatozoa.
 Since our pipeline extracts \(\sim 9000\) samples per image, we need a criteria to select among these the
@@ -136,4 +137,39 @@ using a 4-fold cross-validation strategy.
 We let aside a subset of \(50\) images for the testing phase, and divide the remaining \(450\)
 images in 4 non-overlapping validation subsets of equal size (\(125\) images), while
 the training set of a fold contains all other samples.
+
+Fig. \ref{fig:orgd59f3c4} shows the absolute count error on the validation set using the hard negative mining strategy
+for increasing values of \(\tau\).
+We select the optimal value \(\tau^*\) that minimizes the error.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{../results/hard_mining/cross_validation.png}
+\caption{\label{fig:orgd59f3c4}Absolute count error with respect to threshold \(\tau\) using our hard negative mining strategy. We show the mean absolute count error over 4 folds, with dashed line representing standard deviation.}
+\end{figure}
+
+\section{Experiments}
+\label{sec:org852a0e8}
+
+So as to prove the relevance of our hard mining strategy, we perform an ablation study.
+In particular, we introduce classification methods:
+
+\begin{itemize}
+\item \textbf{Hard Negative Mining Random Forest}: A Random Forest classifiers containing \(M \cdot T\) trees
+optimized using an augmented positive set (Sec. \ref{sec:orgf6647b5} ), and the proposed hard negative mining strategy (Sec. \ref{sec:org6b3f574}).
+\item \textbf{Random Negative Mining Random Forest}: A Random Forest classifiers containing \(M \cdot T\) trees
+optimized using the same augmented positive set, and randomly sampled negatives.
+\end{itemize}
+
+Both methods are cross-validated (as in Sec. \ref{sec:org8d9bd5e}) using the same training and validation subsets to get their respective
+optimal threshold value \(\tau^*\).
+
+We then re-train both methods on an identical data subset (union of training and validation set used in Sec. \ref{sec:org8d9bd5e}), and compute performance metrics on the remaining set (test set).
+
+Letting \(C\) and \(\hat{C}\) the true and estimated counts, respectively, we report the following metrics:
+
+\begin{itemize}
+\item \(\Delta = |\hat{C} - C|\): The absolute estimated error.
+\item \(\bar{\Delta} = \frac{|\hat{C} - C|}{C}\): The normalized estimated count.
+\end{itemize}
 \end{document}

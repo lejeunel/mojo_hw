@@ -5,10 +5,58 @@ import matplotlib.pyplot as plt
 from sampler import Sampler
 import glob
 from skimage import io
+from skimage import feature
 import os
 import re
 from tqdm import tqdm
 import pickle
+
+
+def predict(clf,
+            samplers,
+            step,
+            max_num_peaks,
+            im_shape,
+            thr_rel=None,
+            thr_abs=None):
+
+    peaks = []
+    for i, s in enumerate(samplers):
+        xy = s.xy
+        yhat = clf.predict_proba(s.descs)[:, 1]
+        shape = io.imread(s.im_path).shape
+        peaks_ = get_peaks(xy,
+                           yhat,
+                           step,
+                           max_num_peaks,
+                           shape,
+                           thr_rel=thr_rel,
+                           thr_abs=thr_abs)
+        peaks.append(peaks_)
+
+    return peaks
+
+
+def get_peaks(xy,
+              p,
+              step,
+              max_num_peaks,
+              im_shape,
+              thr_rel=None,
+              thr_abs=None):
+
+    i = (xy[:, 1] * (im_shape[0] - 1) / step).astype(int)
+    j = (xy[:, 0] * (im_shape[1] - 1) / step).astype(int)
+    map_ = np.zeros((im_shape[0] // step, im_shape[1] // step))
+    map_[i, j] = p
+
+    peaks = feature.peak_local_max(map_,
+                                   threshold_rel=thr_rel,
+                                   threshold_abs=thr_abs,
+                                   num_peaks=max_num_peaks)
+
+    peaks *= step
+    return peaks
 
 
 def make_train_val_test(samplers, test_ratio, n_folds=4):
@@ -19,12 +67,15 @@ def make_train_val_test(samplers, test_ratio, n_folds=4):
 
     chunks = np.array_split(train_val_samplers, n_folds)
 
-    folds = []
-    for n in range(n_folds):
-        train_fold = [c for k, c in enumerate(chunks) if k != n]
-        train_fold = [item for sublist in train_fold for item in sublist]
-        dict_ = {'train': train_fold, 'val': chunks[n]}
-        folds.append(dict_)
+    if n_folds > 1:
+        folds = []
+        for n in range(n_folds):
+            train_fold = [c for k, c in enumerate(chunks) if k != n]
+            train_fold = [item for sublist in train_fold for item in sublist]
+            dict_ = {'train': train_fold, 'val': chunks[n]}
+            folds.append(dict_)
+    else:
+        folds = [{'train': chunks[0]}]
 
     return folds, test_samplers
 

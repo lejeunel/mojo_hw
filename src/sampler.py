@@ -15,7 +15,7 @@ class Sampler:
                  xy,
                  descs,
                  neg_dist=0.1,
-                 pos_dist=0.03,
+                 pos_dist=0.01,
                  default_N_negs=10,
                  im_path=None):
         """
@@ -23,6 +23,7 @@ class Sampler:
         xy: ndarray with coordinates of features
         descs: ndarray with each row a feature vector
         neg_min_dist: minimum relative distance that a negative can have w.r.t a positive
+        pos_dist: maximum relative distance that an augmented positive can have w.r.t a positive
         default_N_negs: when image has no positives, take this amount of negatives
         """
 
@@ -57,6 +58,15 @@ class Sampler:
     def get_image(self):
         return io.imread(self.im_path)
 
+    def get_pos(self):
+        """
+        Return a {0;1} vector of positives (with augmented)
+        """
+        y = np.zeros(self.descs.shape[0]).astype(int)
+        if self.pos.size > 0:
+            y[self.pos_candidates] = 1
+        return y
+
     def get_no_aug_pos(self):
         """
         Return a {0;1} vector of annotated positives (without augmented)
@@ -65,6 +75,15 @@ class Sampler:
         if self.pos.size > 0:
             y[self.pos] = 1
         return y
+
+    def get_no_aug_xy(self):
+        """
+        Return a xy  array of annotated positives (without augmented)
+        """
+        y = np.zeros(self.descs.shape[0]).astype(int)
+        if self.pos.size > 0:
+            return self.xy[self.pos, :]
+        return np.array([[], []])
 
     def _has_pos(self):
         return self.xy_pos.size > 0
@@ -101,9 +120,9 @@ class Sampler:
 
     def sample(self, N_neg=None, p=None):
         """
-        Samples negatives randomly.
+        Samples negatives.
         When N_neg is None, return balanced set
-        p are the probabilities of sampling negatives
+        p are the foreground probabilities
 
         Returns Y, f, xy
             Y: ndarray with labels in {0;1}

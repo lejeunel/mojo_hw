@@ -5,6 +5,7 @@
 - numpy
 - scikit-learn
 - scikit-image
+- pandas
 - tqdm
 - matplotlib
 - configargparse

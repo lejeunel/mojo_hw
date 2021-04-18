@@ -20,7 +20,8 @@ in focus must be classified as negative.
 
 It is therefore clear that training an efficient classifier in this context requires an appropriate
 negative mining strategy, since a vast amount of potential negative patches carry no relevant information, e.g.
-homogeneous taint, or obvious artifacts (debris).
+homogeneous taint, or obvious artifacts (debris), while many negative samples (out of focus) are visually similar to
+positives.
 
 We now describe in more details our pipeline.
 After introducing some notations, we describe our feature extraction instance, follow with
@@ -73,17 +74,18 @@ Our algorithm runs as follows:
 
 1. Train $f_\theta$ by fitting $T$ trees using positive set $\mathcal{S}_p$, and negative set $\mathcal{S}'_n$ with $N_p$
    samples chosen by uniform random sampling from $\mathcal{S}_n$.
-2. Predict probability of samples from $\mathcal{S}_n$ using $f_\theta$ to get $\hat{y}^-$
-3. Sort $\mathcal{S}_n$ according to $\hat{y}^-$ in descending order, and set
+2. Set $\mathcal{S}_n \leftarrow $\mathcal{S}_n \\ \mathcal{S}'_n$
+3. Predict probabilities of samples in $\mathcal{S}_n$ using $f_\theta$ to get $\hat{y}^-$
+4. Sort $\mathcal{S}_n$ according to $\hat{y}^-$ in descending order, and set
    $\mathcal{S}'_n$ with the first $N_p$ elements of $\mathcal{S}_n$.
-4. Train $f_\theta$ by fitting $T$ *additional trees* using $\mathcal{S}_p$ and $\mathcal{S}'_n$.
-5. Repeat steps 2-4 $M$ times.
+5. re-train $f_\theta$ by fitting $T$ trees using $\mathcal{S}_p$ and $\mathcal{S}'_n$.
+6. Repeat steps 2-5 $M$ times.
 
    Fig. [[fig:mining_prev]] illustrates our sampling strategy on an example image.
 
    #+NAME: fig:mining_prev
-   #+CAPTION: Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after $M=4$ iterations.
-   [[../results/mining_prev.png]]
+   #+CAPTION: Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after $4$ iterations.
+   [[../results/hard_mining/mining_prev.png]]
 
 ** Tuning of hyper-parameters
 
@@ -96,3 +98,31 @@ using a 4-fold cross-validation strategy.
 We let aside a subset of $50$ images for the testing phase, and divide the remaining $450$
 images in 4 non-overlapping validation subsets of equal size ($125$ images), while
 the training set of a fold contains all other samples.
+
+Fig. [[fig:k_fold_hard]] shows the absolute count error on the validation set using the hard negative mining strategy
+for increasing values of $\tau$.
+We select the optimal value $\tau^*$ that minimizes the error.
+
+   #+NAME: fig:k_fold_hard
+   #+CAPTION: Absolute count error with respect to threshold $\tau$ using our hard negative mining strategy. We show the mean absolute count error over 4 folds, with dashed line representing standard deviation.
+   [[../results/hard_mining/cross_validation.png]]
+
+* Experiments
+
+So as to prove the relevance of our hard mining strategy, we perform an ablation study.
+In particular, we introduce classification methods:
+
+- *Hard Negative Mining Random Forest*: A Random Forest classifiers containing $M \cdot T$ trees
+  optimized using an augmented positive set (Sec. [[Augmentation of positives]] ), and the proposed hard negative mining strategy (Sec. [[Hard negative mining]]).
+- *Random Negative Mining Random Forest*: A Random Forest classifiers containing $M \cdot T$ trees
+  optimized using the same augmented positive set, and randomly sampled negatives.
+
+Both methods are cross-validated (as in Sec. [[Tuning of hyper-parameters]]) using the same training and validation subsets to get their respective
+optimal threshold value $\tau^*$.
+
+We then re-train both methods on an identical data subset (union of training and validation set used in Sec. [[Tuning of hyper-parameters]]), and compute performance metrics on the remaining set (test set).
+
+Letting $C$ and $\hat{C}$ the true and estimated counts, respectively, we report the following metrics:
+
+- $\Delta = |\hat{C} - C|$: The absolute estimated error.
+- $\bar{\Delta} = \frac{|\hat{C} - C|}{C}$: The normalized estimated count.
