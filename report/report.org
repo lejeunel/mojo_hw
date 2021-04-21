@@ -155,3 +155,44 @@ We show our results on Tab. [[tab:results]], and some qualitative results on Fig
         \label{fig:test_prevs}
 \end{figure}
 #+END_SRC
+
+* Discussion and Conclusion
+
+The proposed hard negative mining strategy brings a substantial improvement over the simpler random negative mining.
+In particular, we show an improvement of $74\%$ according to the mean normalized absolute count error.
+
+** Limitations and potential improvements
+
+Given the limited amount of time allocated, as well as limited computational resources to this effort (only CPU-based solutions were considered for practical reasons), we suggest the following potential future improvements:
+
+- A deep learning model could be optimized so as to classify local regions. In particular, a deep learning approach allows
+  to optimize both the feature extraction instance and the classification instance in an end-to-end manner.
+- For the present scenario, an even simpler approach could consist in taking the whole image as the input of a CNN,
+  while a regression layer would directly count the number of occurrences.
+
+The more complex problem of assessing the motility requires that positive samples are explicitly localized so as to be tracked.
+The latter task could be tackled using a region-proposal model.
+Literature already provides efficient solutions, such as [[https://arxiv.org/abs/1506.01497][Faster R-CNN]],that rely on a CNN and regression layers so as to provide
+objectness probabilities along with the coordinates of corresponding bounding-boxes (x, y, w, h).
+However, the present scenario, in my understanding, does not justify the need for all these coordinates.
+Indeed, as most objects (spermatozoa) are of equal size, one might omit the regression of the width and height,
+i.e. only regress for the (x, y) coordinates.
+
+** Discussion on dataset and annotation
+
+The annotation task contains a strong subjective factor, in that there is no strong frontier between an
+in-focus and out-of-focus spermatozoa.
+
+This aspect could be addressed by giving the same dataset to several annotators, so as to
+compute a consensus.
+
+Another approach could consist in changing the annotation protocol so as to obtain a negative set that contains out-of-focus spermatozoa and other confusing
+artifacts.
+
+** Discussion on the detection and tracking pipeline
+
+In order to assess motility, an accurate object detection instance is crucial, but not sufficient.
+
+The latter instance must be coupled with a tracking module that would connect detections over time.
+In particular, I believe that a multi-object tracking algorithm would be appropriate,
+and recommend [[https://infoscience.epfl.ch/record/164041?ln=en][Multiple Object Tracking using K-Shortest Paths Optimization (Berclaz et al, 2011)]].
