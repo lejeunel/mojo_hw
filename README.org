@@ -40,10 +40,23 @@ Run all these from the ~src~ directory:
     python view_xval.py --scores_path path/to/results/crossval_scores.p
     #+END_SRC
 
-4. Test:
+4. Train:
+    #+BEGIN_SRC sh
+python train.py --do-hard-mining --results-path ../results/hard_mining --max-feats 0.2
+    #+END_SRC
+
+    #+BEGIN_SRC sh
+python train.py --results-path ../results/rnd_mining --max-feats 0.25
+    #+END_SRC
+
+5. Test:
 
    Add flag ~--do-prevs~ to generate image previews.
 
     #+BEGIN_SRC sh
-    python test.py --scores_path path/to/results/crossval_scores.p
+    python test.py --results-path <path/to/results> --tau 0.8
+    #+END_SRC
+
+    #+BEGIN_SRC sh
+    python test.py --results-path <path/to/results> --tau 0.5
     #+END_SRC
