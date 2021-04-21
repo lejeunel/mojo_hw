@@ -20,10 +20,30 @@ Run all these from the ~src~ directory:
     python feat_extractor.py --im-path <path/to/images> --out-path <path/to/features>
     #+END_SRC
 
-2. Train:
+2. Cross-validation (optional)
+
+   For hard negative mining:
 
     #+BEGIN_SRC sh
-    python train.py --do-hard-mining --im-path <path/to/images> --label-path <path/to/labels> --results-path <path/to/results> --feat-path <path/to/features>
+    python xval.py --do-hard-mining --im-path <path/to/images> --label-path <path/to/labels> --feat-path <path/to/features> --results-path <path/to/results>
     #+END_SRC
 
-3. Run k-fold cross-validation:
+   For random negative mining:
+
+    #+BEGIN_SRC sh
+    python xval.py --im-path <path/to/images> --label-path <path/to/labels> --feat-path <path/to/features> --results-path <path/to/results>
+    #+END_SRC
+
+3. Extract optimal hyper-parameters (optional):
+
+    #+BEGIN_SRC sh
+    python view_xval.py --scores_path path/to/results/crossval_scores.p
+    #+END_SRC
+
+4. Test:
+
+   Add flag ~--do-prevs~ to generate image previews.
+
+    #+BEGIN_SRC sh
+    python test.py --scores_path path/to/results/crossval_scores.p
+    #+END_SRC

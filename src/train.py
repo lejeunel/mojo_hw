@@ -9,18 +9,16 @@ from sklearn.ensemble import RandomForestClassifier
 import utils as utls
 
 
-def train_rf(clf, samplers, Y, add_negatives=0, do_hard_mining=False):
+def train_rf(clf, X, Y, add_negatives=0, do_hard_mining=False):
     """
     clf: classifier
-    samplers: List of Sampler objects
+    X: nd-array of features
     Y: 1d-array with values:
         - 1: foreground
         - 0: background
         - -1: unused
     add_negatives: number of samples to sample from the unused set to use as negative
     """
-
-    X = np.concatenate([s.descs for s in samplers])
 
     if add_negatives > 0:
         idx_unused = np.where(Y == -1)[0]
@@ -35,8 +33,13 @@ def train_rf(clf, samplers, Y, add_negatives=0, do_hard_mining=False):
             neg_idx = np.random.choice(idx_unused, size=add_negatives)
             Y[neg_idx] = 0
 
-    # print('fitting classifier with {} positive and {} negative samples'.format(
-    #     (Y == 1).sum(), (Y == 0).sum()))
+    # compute class weights
+    # class_weight = {
+    #     0: (Y == 1).sum() / (Y != -1).sum(),
+    #     1: (Y == 0).sum() / (Y != -1).sum()
+    # }
+    # clf.class_weight = class_weight
+
     clf.fit(X[Y != -1, :], Y[Y != -1])
 
     return clf, Y
@@ -45,7 +48,8 @@ def train_rf(clf, samplers, Y, add_negatives=0, do_hard_mining=False):
 def train(samplers, n_trees, min_samp_split, min_samp_leaf, max_feats, n_iters,
           n_jobs, do_hard_mining):
 
-    Y = np.concatenate([s.get_pos() for s in samplers])
+    Y = np.concatenate([s._build_all()[0] for s in samplers])
+    X = np.concatenate([s._build_all()[1] for s in samplers])
 
     Np = Y.sum()
     # mask all background
@@ -63,7 +67,7 @@ def train(samplers, n_trees, min_samp_split, min_samp_leaf, max_feats, n_iters,
         if j > 0:
             clf.n_estimators += n_trees
         clf, Y = train_rf(clf,
-                          samplers,
+                          X,
                           Y,
                           add_negatives=Np,
                           do_hard_mining=False if j == 0 else do_hard_mining)

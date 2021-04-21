@@ -97,24 +97,30 @@ def load_clfs(path):
     return clfs
 
 
-def build_samplers(im_path, feat_path, label_path):
+def build_samplers(im_path, feat_path, label_path, seed=0):
+
     ims_fname = sorted(glob.glob(os.path.join(im_path, '*.png')))
     feats_fname = sorted(glob.glob(os.path.join(feat_path, '*.npz')))
     labels_fname = sorted(glob.glob(os.path.join(label_path, '*.txt')))
+
+    # shuffle
+    if seed is not None:
+        np.random.seed(seed)
+        idx = np.arange(len(ims_fname))
+        np.random.shuffle(idx)
+        ims_fname = [ims_fname[i] for i in idx]
+        feats_fname = [feats_fname[i] for i in idx]
+        labels_fname = [labels_fname[i] for i in idx]
 
     samplers = []
 
     print('Loading data and building samplers')
     pbar = tqdm(total=len(feats_fname))
-    for i in range(len(feats_fname)):
-
-        labels = read_labels(labels_fname[i])
-        xy, descs = read_feats(feats_fname[i])
-
-        sampler = Sampler(labels, xy, descs, im_path=ims_fname[i])
-
+    for i, l, f in zip(ims_fname, labels_fname, feats_fname):
+        labels = read_labels(l)
+        xy, descs = read_feats(f)
+        sampler = Sampler(labels, xy, descs, im_path=i)
         samplers.append(sampler)
-
         pbar.update(1)
 
     pbar.close()

@@ -22,14 +22,12 @@ if __name__ == "__main__":
         scores = pickle.load(f)
 
     df = pd.DataFrame(scores)
-    df['rel_diff'] = df['abs_diff'] / df['count_y']
     df = df.groupby(['min_samp_split', 'min_samp_leaf',
                      'max_feats']).mean().reset_index()
-    opt_idx = np.argmin(df['rel_diff'])
+    opt_idx = np.argmin(df['mare'])
     opt = df.iloc[opt_idx]
 
-    print('optimal absolute error: ', opt['abs_diff'])
-    print('optimal normalized absolute error: ', opt['rel_diff'])
+    print('optimal mean absolute relative error: ', opt['mare'])
     print('max_feats: ', opt['max_feats'])
     print('min_samp_split: ', opt['min_samp_split'])
     print('min_samp_leaf: ', opt['min_samp_leaf'])

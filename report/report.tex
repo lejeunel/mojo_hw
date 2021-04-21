@@ -1,4 +1,4 @@
-% Created 2021-04-18 Sun 09:50
+% Created 2021-04-18 Sun 20:14
 % Intended LaTeX compiler: pdflatex
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
@@ -29,16 +29,16 @@
 \maketitle
 
 \section{Context and Goal}
-\label{sec:org16221ae}
+\label{sec:orgcd609fd}
 
 In the context of sperm quality assessment, we devise an algorithm that counts the number of spermatozoa
 on image-slices obtained through a camera.
 
 
 \section{Method}
-\label{sec:orgd52ff51}
+\label{sec:org24626fb}
 
-Our solution relies on a Random Forest classifier trained on patches.
+Our solution relies on a Random Forest classifier.
 In a nutshell, we first leverage the \href{https://www.epfl.ch/labs/cvlab/software/descriptors-and-keypoints/daisy/}{DAISY} descriptors to characterize local regions.
 We then devise a sampling strategy to augment the scarce positive set, while a hard negative mining strategy allows to select relevant samples from the redundant and ambiguous
 negative set.
@@ -47,7 +47,7 @@ The main challenges of this problem lies in (1) the strong imbalance of the prov
 in focus must be classified as negative.
 
 It is therefore clear that training an efficient classifier in this context requires an appropriate
-negative mining strategy, since a vast amount of potential negative patches carry no relevant information, e.g.
+negative mining strategy, since a vast amount of potential negative samples carry no relevant information, e.g.
 homogeneous taint, or obvious artifacts (debris), while many negative samples (out of focus) are visually similar to
 positives.
 
@@ -57,7 +57,7 @@ our negative mining strategy, and finish by giving details on the setting of hyp
 
 
 \subsection{Notations}
-\label{sec:org2a7cc11}
+\label{sec:orgf5742e0}
 
 \begin{itemize}
 \item \(\bm{X} \in \mathbb{R}^{N \times D}\) a feature matrix where rows are samples and columns
@@ -67,40 +67,43 @@ are the components of the feature vector.
 \end{itemize}
 
 \subsection{Feature extraction}
-\label{sec:orge3e1686}
+\label{sec:orgf497959}
 
 DAISY descriptors have been proposed as an improvement over the popular \href{https://en.wikipedia.org/wiki/Scale-invariant\_feature\_transform}{Scale Invariant Feature Transform (SIFT)}.
 In particular, it is devised to compute dense descriptors (one per pixel) using a fast algorithm.
 
 In our scenario, we do not need to localize samples precisely.
-We therefore prefer to extract descriptors with a decimation step of \(8\), so as to save memory.
+We therefore prefer to extract descriptors with a decimation step of \(16\) pixels, so as to save memory.
 For an image of size \(1920 \times 1200\), we obtain a total of \(9000\) descriptors encoded in \href{https://en.wikipedia.org/wiki/Half-precision\_floating-point\_format}{Half-precision floating-point format}.
 
 The \href{https://github.com/scikit-image/scikit-image/blob/main/skimage/feature/\_daisy.py\#L9-L222}{algorithm} computes dense descriptors in \(\sim 5\) seconds per image, making \(\sim 50\) minutes for the full dataset (500 images).
 
 \subsection{Classifier}
-\label{sec:org07d4a2b}
+\label{sec:orge58855c}
 
 To classify samples, we use a \href{https://en.wikipedia.org/wiki/Random\_forest}{Random Forest} classifier.
 As purity criterion, we select the \href{https://en.wikipedia.org/wiki/Gini\_coefficient}{Gini} index.
 
 \subsection{Augmentation of positives}
-\label{sec:org6e9b963}
+\label{sec:org173982f}
 
 To alleviate the lack of positives, we define a circular region centered on a \((x,y)\) location
 annotated as positive, and
-take as positive patches all patches whose center is in a close vicinity.
+take as positive samples all samples whose center is in a close vicinity.
 In particular, we compute a pairwise distance matrix between all positives and all other samples,
 threshold the values of this matrix by a pre-defined constant \(L_2\) -norm,
 and augment our positive set with the corresponding samples.
 
 \subsection{Hard negative mining}
-\label{sec:orgd115d86}
+\label{sec:org595b689}
 
 We follow a simple iterative strategy to identify ``hard'' negatives.
-Our idea is to pick relevant negative samples by using the predicted probability of the model itself.
+As we want our negatives to be \emph{far enough} from positives, we first filter-out negative candidates that are
+close to a positive sample by thresholding the \(L_2\) -norm.
 
-Let \(\mathcal{S}_p\) the set of positive samples, obtained as in Sec. \ref{sec:org6e9b963}, such that \(|\mathcal{S}_p|=N_p\).
+Our idea is then to pick relevant negative samples by using the predicted probability of the model itself.
+
+Let \(\mathcal{S}_p\) the set of positive samples, obtained as in Sec. \ref{sec:org173982f}, such that \(|\mathcal{S}_p|=N_p\).
 Also, let \(\mathcal{S}_n\) the set of negative samples, such that \(|\mathcal{S}_n|=N_n \gg N_p\).
 
 
@@ -113,57 +116,76 @@ samples chosen by uniform random sampling from \(\mathcal{S}_n\).
 \item Predict probabilities of samples in \(\mathcal{S}_n\) using \(f_\theta\) to get \(\hat{y}^-\)
 \item Sort \(\mathcal{S}_n\) according to \(\hat{y}^-\), and populate
 \(\mathcal{S}'_n\) with the last \(N_p\) elements of \(\mathcal{S}_n\).
-\item re-train \(f_\theta\) by fitting \(T\) trees using \(\mathcal{S}_p\) and \(\mathcal{S}'_n\).
+\item re-train \(f_\theta\) by fitting \(T\) \textbf{additional} trees using \(\mathcal{S}_p\) and \(\mathcal{S}'_n\).
 \item Repeat steps 2-5 \(M\) times.
 
-Fig. \ref{fig:org9c16bf9} illustrates our sampling strategy on an example image.
+Fig. \ref{fig:org6cb1d60} illustrates our sampling strategy on an example image.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=.9\linewidth]{../results/hard_mining/mining_prev.png}
-\caption{\label{fig:org9c16bf9}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after \(4\) iterations.}
+\caption{\label{fig:org6cb1d60}Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy.}
 \end{figure}
 \end{enumerate}
 
 \subsection{Post-processing}
-\label{sec:orgdb8f0f8}
+\label{sec:org710cb33}
 
-As a post-processing step, we apply a simple non-maximum suppression to select in a given spatial neighborhood
+As a post-processing step, we apply a simple non-maximum suppression algorithm to select
+in a given spatial neighborhood
 the most-likely positive candidate.
 
 \subsection{Tuning of hyper-parameters}
-\label{sec:org47352cc}
+\label{sec:org2fddd4c}
 
 We optimize the following hyper-parameters of our classifier using grid-search and 4-fold cross-validation:
 
 \begin{itemize}
 \item Minimum number of samples required to split an internal node.
-\item Minimum number of samples required to be at leaf node.
 \item Maximum number of feature components to pick at each split.
 \end{itemize}
 
 \section{Experiments}
-\label{sec:org484ed9a}
+\label{sec:org7ca3cad}
 
 So as to demonstrate the relevance of our hard mining strategy, we perform an ablation study.
-In particular, we introduce classification methods:
+In particular, we introduce methods:
 
 \begin{itemize}
 \item \textbf{Hard Negative Mining Random Forest}: A Random Forest classifiers containing \(M \cdot T\) trees
-optimized using an augmented positive set (Sec. \ref{sec:org6e9b963} ), and the proposed hard negative mining strategy (Sec. \ref{sec:orgd115d86}).
+optimized using an augmented positive set (Sec. \ref{sec:org173982f} ), and the proposed hard negative mining strategy (Sec. \ref{sec:org595b689}).
 \item \textbf{Random Negative Mining Random Forest}: A Random Forest classifiers containing \(M \cdot T\) trees
 optimized using the same augmented positive set, and randomly sampled negatives.
 \end{itemize}
 
-Both methods are cross-validated (as in Sec. \ref{sec:org47352cc}) using the same training and validation subsets to get their respective
+Both methods are cross-validated (as in Sec. \ref{sec:org2fddd4c}) using the same training and validation subsets to get their respective
 optimal hyper-parameters.
 
-Using these, we then re-train both methods on an identical data subset (union of training and validation set used in Sec. \ref{sec:org47352cc}), and compute performance metrics on the remaining set (test set).
+Using these, we then re-train both methods on an identical data subset (union of training and validation set used in Sec. \ref{sec:org2fddd4c}), and compute performance metrics on the remaining set (test set).
 
-Letting \(C\) and \(\hat{C}\) the true and estimated counts, respectively, we report the following metrics:
+Letting \(C_i\) and \(\hat{C}_i\) the true and estimated counts of frame \(i\), respectively, we report as metric the mean absolute normalized count error given by
 
-\begin{itemize}
-\item \(\Delta = |\hat{C} - C|\): The absolute estimated error.
-\item \(\bar{\Delta} = \frac{|\hat{C} - C|}{C}\): The normalized estimated count.
-\end{itemize}
+\[
+m = \mathbb{E}_i \left[ \frac{|\hat{C}_i - C_i|}{C_i} \right]
+\]
+
+We show our results on Tab. \ref{tab:orge1e5479}, and some qualitative results on \ref{fig:org6cffaa3}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lrr}
+Method & m-score & MAE\\
+\hline
+\textbf{Hard Negative Mining} & 0.49 & 9.01\\
+\textbf{Random Negative Mining} & 19.43 & 110.9\\
+\end{tabular}
+\caption{\label{tab:orge1e5479}Performance of proposed methods. We report the mean absolute error (MAE) between the true count and the predicted count, and the mean normalized absolute error (m-score)}
+
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{../results/hard_mining/prevs/test_0018.png}
+\caption{\label{fig:org6cffaa3}Example of predictions. Groundtruth positives are in green, predicted positives are in magenta (Left) Hard Negative Mining, (Right) Random Negative Mining.}
+\end{figure}
 \end{document}

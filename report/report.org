@@ -10,7 +10,7 @@ on image-slices obtained through a camera.
 
 * Method
 
-Our solution relies on a Random Forest classifier trained on patches.
+Our solution relies on a Random Forest classifier.
 In a nutshell, we first leverage the [[https://www.epfl.ch/labs/cvlab/software/descriptors-and-keypoints/daisy/][DAISY]] descriptors to characterize local regions.
 We then devise a sampling strategy to augment the scarce positive set, while a hard negative mining strategy allows to select relevant samples from the redundant and ambiguous
 negative set.
@@ -19,7 +19,7 @@ The main challenges of this problem lies in (1) the strong imbalance of the prov
 in focus must be classified as negative.
 
 It is therefore clear that training an efficient classifier in this context requires an appropriate
-negative mining strategy, since a vast amount of potential negative patches carry no relevant information, e.g.
+negative mining strategy, since a vast amount of potential negative samples carry no relevant information, e.g.
 homogeneous taint, or obvious artifacts (debris), while many negative samples (out of focus) are visually similar to
 positives.
 
@@ -41,7 +41,7 @@ DAISY descriptors have been proposed as an improvement over the popular [[https:
 In particular, it is devised to compute dense descriptors (one per pixel) using a fast algorithm.
 
 In our scenario, we do not need to localize samples precisely.
-We therefore prefer to extract descriptors with a decimation step of $8$, so as to save memory.
+We therefore prefer to extract descriptors with a decimation step of $16$ pixels, so as to save memory.
 For an image of size $1920 \times 1200$, we obtain a total of $9000$ descriptors encoded in [[https://en.wikipedia.org/wiki/Half-precision_floating-point_format][Half-precision floating-point format]].
 
 The [[https://github.com/scikit-image/scikit-image/blob/main/skimage/feature/_daisy.py#L9-L222][algorithm]] computes dense descriptors in $\sim 5$ seconds per image, making $\sim 50$ minutes for the full dataset (500 images).
@@ -55,7 +55,7 @@ As purity criterion, we select the [[https://en.wikipedia.org/wiki/Gini_coeffici
 
 To alleviate the lack of positives, we define a circular region centered on a $(x,y)$ location
 annotated as positive, and
-take as positive patches all patches whose center is in a close vicinity.
+take as positive samples all samples whose center is in a close vicinity.
 In particular, we compute a pairwise distance matrix between all positives and all other samples,
 threshold the values of this matrix by a pre-defined constant $L_2$ -norm,
 and augment our positive set with the corresponding samples.
@@ -63,7 +63,10 @@ and augment our positive set with the corresponding samples.
 ** Hard negative mining
 
 We follow a simple iterative strategy to identify "hard" negatives.
-Our idea is to pick relevant negative samples by using the predicted probability of the model itself.
+As we want our negatives to be /far enough/ from positives, we first filter-out negative candidates that are
+close to a positive sample by thresholding the $L_2$ -norm.
+
+Our idea is then to pick relevant negative samples by using the predicted probability of the model itself.
 
 Let $\mathcal{S}_p$ the set of positive samples, obtained as in Sec. [[Augmentation of positives]], such that $|\mathcal{S}_p|=N_p$.
 Also, let $\mathcal{S}_n$ the set of negative samples, such that $|\mathcal{S}_n|=N_n \gg N_p$.
@@ -77,18 +80,20 @@ We train a Random Forest classifier $f_\theta$ using the following procedure:
 3. Predict probabilities of samples in $\mathcal{S}_n$ using $f_\theta$ to get $\hat{y}^-$
 4. Sort $\mathcal{S}_n$ according to $\hat{y}^-$, and populate
    $\mathcal{S}'_n$ with the last $N_p$ elements of $\mathcal{S}_n$.
-5. re-train $f_\theta$ by fitting $T$ trees using $\mathcal{S}_p$ and $\mathcal{S}'_n$.
+5. re-train $f_\theta$ by fitting $T$ *additional* trees using $\mathcal{S}_p$ and $\mathcal{S}'_n$.
 6. Repeat steps 2-5 $M$ times.
 
    Fig. [[fig:mining_prev]] illustrates our sampling strategy on an example image.
 
    #+NAME: fig:mining_prev
-   #+CAPTION: Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy after $4$ iterations.
+   #+CAPTION: Sample mining strategy on an image. Positives are in green, negatives are in magenta. Left: For the first iteration, negatives are sampled at random. Right: Negatives are sampled according to our hard mining strategy.
    [[../results/hard_mining/mining_prev.png]]
 
 ** Post-processing
 
-As a post-processing step, we apply a simple non-maximum suppression algorithm to select
+As a post-processing step, we first apply a threshold $\tau$ to the probability values given
+by our classifier,
+and apply a simple non-maximum suppression algorithm to select
 in a given spatial neighborhood
 the most-likely positive candidate.
 
@@ -96,8 +101,8 @@ the most-likely positive candidate.
 
 We optimize the following hyper-parameters of our classifier using grid-search and 4-fold cross-validation:
 
-- Minimum number of samples required to split an internal node.
 - Maximum number of feature components to pick at each split.
+- Threshold value $\tau$ applied to the output probabilities.
 
 * Experiments
 
@@ -114,7 +119,21 @@ optimal hyper-parameters.
 
 Using these, we then re-train both methods on an identical data subset (union of training and validation set used in Sec. [[Tuning of hyper-parameters]]), and compute performance metrics on the remaining set (test set).
 
-Letting $C$ and $\hat{C}$ the true and estimated counts, respectively, we report the following metrics:
+Letting $C_i$ and $\hat{C}_i$ the true and estimated counts of frame $i$, respectively, we report as metric the mean absolute normalized count error given by
 
-- $\Delta = |\hat{C} - C|$: The absolute estimated error.
-- $\bar{\Delta} = \frac{|\hat{C} - C|}{C}$: The normalized estimated count.
+\[
+m = \mathbb{E}_i \left[ \frac{|\hat{C}_i - C_i|}{C_i} \right]
+\]
+
+We show our results on Tab. [[tab:results]], and some qualitative results on [[fig:test_prevs]]
+
+#+NAME: tab:results
+#+CAPTION: Performance of proposed methods. We report the mean absolute error (MAE) between the true count and the predicted count, and the mean normalized absolute error (m-score)
+| Method                   | m-score |   MAE |
+|--------------------------+---------+-------|
+| *Hard Negative Mining*   |    0.49 |  9.01 |
+| *Random Negative Mining* |    1.87 | 11.36 |
+
+#+NAME: fig:test_prevs
+#+CAPTION: Example of predictions. Groundtruth positives are in green, predicted positives are in magenta (Left) Hard Negative Mining, (Right) Random Negative Mining.
+[[../results/hard_mining/prevs/test_0018.png]]

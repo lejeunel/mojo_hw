@@ -95,21 +95,18 @@ class Sampler:
 
         return self.pos_candidates.shape[0]
 
-    def _build_output_from_negs(self, idx_negs):
+    def _build_all(self):
         """
-        Builds labels, features, and coordinates arrays
+        Builds labels and features to feed model
         """
-        Y = np.zeros(idx_negs.size).astype(int)
-        f = self.descs[idx_negs, :]
-        xy = self.xy[idx_negs, :]
 
-        if self._has_pos():
-            Y = np.concatenate(
-                (np.ones(self.pos_candidates.shape[0]).astype(int), Y))
-            f = np.concatenate((self.descs[self.pos_candidates], f))
-            xy = np.concatenate((self.xy_pos, xy))
+        Y = np.concatenate((np.ones(
+            (self.pos_candidates.size)), np.zeros(
+                (self.neg_candidates.size)))).astype(int)
+        X = np.concatenate((self.descs[self.pos_candidates, :],
+                            self.descs[self.neg_candidates]))
 
-        return Y, f, xy
+        return Y, X
 
     def get_n_negs(self, N_neg=None):
         if (self._has_pos()) and (N_neg is None):
@@ -118,26 +115,6 @@ class Sampler:
             N_neg = self.default_N_negs
 
         return N_neg
-
-    def sample(self, N_neg=None, p=None):
-        """
-        Samples negatives.
-        When N_neg is None, return balanced set
-        p are the foreground probabilities
-
-        Returns Y, f, xy
-            Y: ndarray with labels in {0;1}
-            f: ndarray with each row a feature vector
-            xy: ndarray with locations of patches
-        """
-        N_neg = self.get_n_negs(N_neg)
-
-        if p is not None:
-            idx_negs = np.argsort(p)[-N_neg:]
-        else:
-            idx_negs = np.random.choice(self.neg_candidates, size=N_neg)
-
-        return self._build_output_from_negs(idx_negs)
 
 
 if __name__ == "__main__":
