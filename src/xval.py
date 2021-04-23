@@ -11,7 +11,7 @@ from tqdm import tqdm
 import utils as utls
 from train import train
 """
-Perform cross-validation on "tree complexity" parameters of Random Forest
+Perform cross-validation on "tree complexity" and threshold value of Random Forest classifier
 """
 
 if __name__ == "__main__":
@@ -97,8 +97,8 @@ if __name__ == "__main__":
                 'max_feats': params['max_feats'],
                 'mae': mae,
                 'mare': mare,
-                'count_y': c,
-                'count_ypred': c_hat
+                'count_y': c.sum(),
+                'count_ypred': c_hat.sum()
             }]
 
             # pbar.set_description('f {}, '.format(loss_))
